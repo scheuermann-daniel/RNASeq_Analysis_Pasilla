@@ -1,5 +1,5 @@
 ---
-title: "RNASeq-Proj1"
+title: "RNASeq-Pasilla"
 author: "Daniel Scheuermann"
 date: "2024-01-31"
 output:
