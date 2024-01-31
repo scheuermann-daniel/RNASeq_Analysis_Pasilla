@@ -89,10 +89,38 @@ deseq_results["FBgn0039155",]
 
 # very low p value and negative log2FoldChange, so this gene is differentially expressed in low levels.
 
-# testing whether or not the Pasilla gene is downregulated by the RNA treatment
+# testing whether or not the Pasilla gene is downregulated by the RNA treatment.
 deseq_results["FBgn0261552",]
 
 # also low p value and negative log2FoldChange, so we can conclude this gene is downregulated.
 
+```
+
+
+```{r data_manip2}
+
+# filtering
+
+# selecting the diferentially expressed genes (alpha = 0.05)
+filtered <- deseq_results %>% filter(deseq_results$padj < 0.05)
+
+filtered <- filtered %>% filter(abs(filtered$log2FoldChange) > 1)
+
+head(filtered)
+
+# number of diferentially expressed genes
+dim(filtered)
+
+```
+
+```{r queries2}
+
+# save manipulated data in new csv files
+write.csv(deseq_results, 'data/deseq_result.all.csv')
+write.csv(filtered, 'data/deseq_result.filtered.csv')
+
+normalized_counts <- counts(dds, normalized = TRUE)
+head(normalized_counts)
+write.csv(normalized_counts, 'data/normalized_counts.csv')
 ```
 
