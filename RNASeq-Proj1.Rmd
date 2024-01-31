@@ -17,6 +17,8 @@ library(dplyr)
 library(RColorBrewer)
 library(ggplot2)
 library(ggrepel)
+library(clusterProfiler)
+library(Annotationdbi)
 
 ```
 
@@ -149,4 +151,80 @@ sample_dists <- dist(t(assay(vsd)))
 sample_dists_matrix <- as.matrix(sample_dists)
 colnames(sample_dists_matrix)
 
+# choose color scheme
+colors <- colorRampPalette(rev(brewer.pal(9,"Blues")))(255)
+
+# generated the heat map
+pheatmap(sample_dists_matrix, clustering_distance_rows = sample_dists, clustering_distance_cols = sample_dists, color = colors)
+
+# based on the heatmap, it seems like GSM461180_treated_paired sample is similar to GSM461181_treated_pairs sample. Meanwhile, the rest of the samples seem to be relatively different.
+
+
+
+# heatmap of top 10 log transformed normalized counts
+# sort by the log transformed normalized counts and select first 10 values
+top_hits <- deseq_results[order(deseq_results$padj),][1:10,]
+top_hits <- row.names(top_hits)
+top_hits
+
+# log transformation
+rld <- rlog(dds, blind = FALSE)
+
+# heatmap without clustering
+pheatmap(assay(rld)[top_hits,], cluster_rows = FALSE, show_rownames = TRUE, cluster_cols = FALSE)
+
+# heatmap with clustering
+pheatmap(assay(rld)[top_hits,])
+
+# adding annotations
+annot_info <- as.data.frame(colData(dds)[,c("Sequencing","Treatment")])
+
+# heatmap with annotations
+pheatmap(assay(rld)[top_hits,], cluster_rows = FALSE, show_rownames = TRUE, cluster_cols = FALSE, annotation_col = annot_info)
+
+
+
+# heatmap of z-scores
+
+# calculating z-scores
+cal_z_score <- function(x) {(x-mean(x)) / sd(x)}
+
+z_scores <- t(apply(normalized_counts, 1, cal_z_score))
+z_score_subset <- z_scores[top_hits,]
+pheatmap(z_score_subset)
+
+
+
+# MA plot
+
+plotMA(dds, ylim = c(-2,2))
+
+# removing noise
+resLFC <- lfcShrink(dds, coef = "Treatment_treated_vs_untreated", type = "apeglm")
+plotMA(resLFC, ylim = c(-2,2))
+
+
+
+# Volcano plot
+# changed the resLFC to a data frame to make a plot with little noise
+resLFC <- as.data.frame(resLFC)
+
+# labeling genes (diferentially expressed vs otherwise)
+resLFC$diffexpressed <- "NO"
+resLFC$diffexpressed[resLFC$log2FoldChange > 0.1 & resLFC$padj < 0.05] <- "UP"
+resLFC$diffexpressed[resLFC$log2FoldChange < 0.1 & resLFC$padj < 0.05] <- "DOWN"
+
+resLFC$delabel <- NA
+
+# volcano plot (note noise is removed)
+ggplot(data = resLFC, aes(x = log2FoldChange, y = log10(pvalue), col = diffexpressed, label = delabel)) +
+  geom_point() +
+  theme_minimal() +
+  geom_text_repel() +
+  scale_color_manual(values = c("blue","black","red")) +
+  theme(text = element_text(size = 20))
 ```
+
+```{r gene_ontology}
+
+
