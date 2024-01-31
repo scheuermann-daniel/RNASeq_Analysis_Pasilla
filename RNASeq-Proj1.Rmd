@@ -124,3 +124,29 @@ head(normalized_counts)
 write.csv(normalized_counts, 'data/normalized_counts.csv')
 ```
 
+```{r visualization}
+
+# dispersion plot
+plotDispEsts(dds)
+
+# principal component analysis plot
+
+# variance stabilization
+vsd <- vst(dds, blind = FALSE)
+
+# pca plot
+plotPCA(vsd, intgroup = c("Sequencing", "Treatment"))
+
+# it seems like there's a clear separation between treated and untreated samples. this demonstrated that there's a path in the data showing a difference in treated vs untreated data samples. The same is true for pairwise vs single samples.
+
+```
+
+
+```{r heatmaps}
+
+# generate distance matrix
+sample_dists <- dist(t(assay(vsd)))
+sample_dists_matrix <- as.matrix(sample_dists)
+colnames(sample_dists_matrix)
+
+```
