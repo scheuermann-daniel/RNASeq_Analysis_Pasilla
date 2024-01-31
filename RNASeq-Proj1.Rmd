@@ -9,7 +9,6 @@ output: html_document
 
 knitr::opts_chunk$set(echo = TRUE)
 
-
 # initial setup
 library(DESeq2)
 library(pheatmap)
@@ -18,7 +17,7 @@ library(RColorBrewer)
 library(ggplot2)
 library(ggrepel)
 library(clusterProfiler)
-library(Annotationdbi)
+library(goseq)
 
 ```
 
@@ -69,10 +68,11 @@ keep <- rowSums(counts(dds)>10) >= min(table(sample_info$Treatment))
 
 dds <- dds[keep,]
 
-# identifying differentially expressed genes
+# identifying diferentially expressed genes
 dds <- DESeq(dds)
 deseq_results <- results(dds)
 deseq_results
+deseq_results_go <- deseq_results
 
 # transfer the deseq results into a dataframe
 deseq_results <- as.data.frame(deseq_results)
@@ -166,6 +166,7 @@ pheatmap(sample_dists_matrix, clustering_distance_rows = sample_dists, clusterin
 top_hits <- deseq_results[order(deseq_results$padj),][1:10,]
 top_hits <- row.names(top_hits)
 top_hits
+write.csv(top_hits, "data/top_hits.csv")
 
 # log transformation
 rld <- rlog(dds, blind = FALSE)
@@ -224,7 +225,3 @@ ggplot(data = resLFC, aes(x = log2FoldChange, y = log10(pvalue), col = diffexpre
   scale_color_manual(values = c("blue","black","red")) +
   theme(text = element_text(size = 20))
 ```
-
-```{r gene_ontology}
-
-
