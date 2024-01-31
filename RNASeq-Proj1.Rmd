@@ -1,0 +1,29 @@
+---
+title: "RNASeq-Proj1"
+author: "Daniel Scheuermann"
+date: "2024-01-31"
+output: html_document
+---
+
+```{r setup, include=TRUE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(DESeq2)
+library(pheatmap)
+library(dplyr)
+library(RColorBrewer)
+library(ggplot2)
+library(ggrepel)
+
+```
+
+
+
+```{r cars}
+summary(cars)
+```
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
