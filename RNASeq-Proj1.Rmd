@@ -74,6 +74,25 @@ deseq_results
 
 # transfer the deseq results into a dataframe
 deseq_results <- as.data.frame(deseq_results)
+class(deseq_results)
+
+# ordering
+deseq_results <- deseq_results[order(deseq_results$pvalue),]
+
+head(deseq_results)
+```
+
+```{r data_queries}
+
+# looking specifically at FBgn0039155
+deseq_results["FBgn0039155",]
+
+# very low p value and negative log2FoldChange, so this gene is differentially expressed in low levels.
+
+# testing whether or not the Pasilla gene is downregulated by the RNA treatment
+deseq_results["FBgn0261552",]
+
+# also low p value and negative log2FoldChange, so we can conclude this gene is downregulated.
 
 ```
 
