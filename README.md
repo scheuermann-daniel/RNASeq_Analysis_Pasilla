@@ -20,7 +20,8 @@ Ensure you have the following R packages installed before running the script:
 - clusterProfiler
 - goseq
 
-## Script Sections
+## RMD Sections
+Please for RNASeq-Pasilla.rmd for a breakdown of the code and the exploration of the data resulting from each section.
 
 ### 1. Intro
 
