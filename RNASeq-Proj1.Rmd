@@ -2,10 +2,16 @@
 title: "RNASeq-Proj1"
 author: "Daniel Scheuermann"
 date: "2024-01-31"
-output: html_document
+output:
+  word_document: default
+  html_document: default
 ---
 
-```{r initial_setup, include=TRUE}
+# Intro
+
+This script and analysis is meant to mimic a study done in 2010 ([link](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3032923/)). The study consisted of studying the Pasilla gene using RNA-seq data. The Pasilla gene was depleted before the total RNA was isolated to prepare single-end and paired-end libraries for the treated vs untreated samples. From there, the libraries were sequenced to obtain the RNA-seq data for each specific sample. We will be comparing the treated vs untreated samples in this script.
+
+```{r initial_setup, include = FALSE}
 
 knitr::opts_chunk$set(echo = TRUE)
 
@@ -21,33 +27,37 @@ library(goseq)
 
 ```
 
+## Data Setup
+
+Here you can see the data set directly split into the treated and untreated samples.
+
+The two separate samples can be compared to show the effects that 'Pasilla' gene depletion has on gene expression.
+
+The factors are single vs paired samples and treated vs untreated samples.
+
 ```{r data_setup}
 
 count_data <- read.csv("data/count_matrix.csv", header = TRUE, row.names = 1)
 
-# here you can see the data set directly split into the treated and untreated samples.
-
-# these two separate samples can be compared to show the effects that 'Pasilla' gene depletion has on gene expression.
-
-colnames(count_data)
-
-head(count_data)
+# colnames(count_data)
+# head(count_data)
 
 # sample information
 
 sample_info <- read.csv("data/design.csv", header = TRUE, row.names = 1)
 
-colnames(sample_info)
-
+# colnames(sample_info)
 head(sample_info)
-
-# the factors here are single vs paired, treated vs untreated.
 
 # setting factor levels
 sample_info$Treatment <- factor(sample_info$Treatment)
 sample_info$Sequencing <- factor(sample_info$Sequencing)
 
 ```
+
+## DESeq2 Setup
+
+In this section, we are just creating the DESeq2 object and specifying the treatment factors.
 
 ```{r DESeq2_setup}
 
@@ -58,6 +68,10 @@ dds <- DESeqDataSetFromMatrix(countData = count_data, colData = sample_info, des
 dds$Treatment <- factor(dds$Treatment, level = c("untreated","treated"))
 
 ```
+
+## Data Manipulation
+
+We make the data easier to work with by removing genes who have a count less than 10. From there, we can perform a DESeq2 analysis to identify the differentially expressed genes. Note the top 10 values. We can tell they are differentially expressed by look at the pvalues.
 
 ```{r data_manip}
 
@@ -71,49 +85,54 @@ dds <- dds[keep,]
 # identifying diferentially expressed genes
 dds <- DESeq(dds)
 deseq_results <- results(dds)
-deseq_results
-deseq_results_go <- deseq_results
 
-# transfer the deseq results into a dataframe
+# transfer the deseq results into a data frame
 deseq_results <- as.data.frame(deseq_results)
-class(deseq_results)
 
 # ordering
 deseq_results <- deseq_results[order(deseq_results$pvalue),]
 
 head(deseq_results)
+# count(deseq_results)
 ```
+
+## Looking at specific genes
+
+By grabbing the results of specific genes from the data frame produced, we can clearly see the Pasilla gene is down-regulated by the RNA treatment due to it's low p-value and negative log2FoldChange value.
 
 ```{r data_queries}
 
 # looking specifically at FBgn0039155
 deseq_results["FBgn0039155",]
 
-# very low p value and negative log2FoldChange, so this gene is differentially expressed in low levels.
-
 # testing whether or not the Pasilla gene is downregulated by the RNA treatment.
 deseq_results["FBgn0261552",]
 
-# also low p value and negative log2FoldChange, so we can conclude this gene is downregulated.
-
 ```
 
+# Data Manipulation 2
+
+After filtering the data and only selecting the differentially expressed genes, we can see that there's a total of 234 differentially expressed genes.
 
 ```{r data_manip2}
 
 # filtering
 
-# selecting the diferentially expressed genes (alpha = 0.05)
+# selecting the differentially expressed genes (alpha = 0.05)
 filtered <- deseq_results %>% filter(deseq_results$padj < 0.05)
 
 filtered <- filtered %>% filter(abs(filtered$log2FoldChange) > 1)
 
-head(filtered)
+# head(filtered)
 
-# number of diferentially expressed genes
+# number of differentially expressed genes
 dim(filtered)
 
 ```
+
+## Storing Results
+
+Check the data folder for the data frames produce and normalized counts.
 
 ```{r queries2}
 
@@ -125,6 +144,10 @@ normalized_counts <- counts(dds, normalized = TRUE)
 head(normalized_counts)
 write.csv(normalized_counts, 'data/normalized_counts.csv')
 ```
+
+# Visualization (Dispersion and PCA)
+
+There's a clear separation between treated and untreated samples. this demonstrated that there's a path in the data showing a difference in treated vs untreated data samples. The same is true for pairwise vs single samples.
 
 ```{r visualization}
 
@@ -139,17 +162,18 @@ vsd <- vst(dds, blind = FALSE)
 # pca plot
 plotPCA(vsd, intgroup = c("Sequencing", "Treatment"))
 
-# it seems like there's a clear separation between treated and untreated samples. this demonstrated that there's a path in the data showing a difference in treated vs untreated data samples. The same is true for pairwise vs single samples.
-
 ```
 
+# Visualization (HeatMaps and Volcano)
+
+Based on the heatmaps, it seems like GSM461180_treated_paired sample is similar to GSM461181_treated_pairs sample. Meanwhile, the rest of the samples seem to be relatively different.
 
 ```{r heatmaps}
 
 # generate distance matrix
 sample_dists <- dist(t(assay(vsd)))
 sample_dists_matrix <- as.matrix(sample_dists)
-colnames(sample_dists_matrix)
+# colnames(sample_dists_matrix)
 
 # choose color scheme
 colors <- colorRampPalette(rev(brewer.pal(9,"Blues")))(255)
@@ -157,25 +181,23 @@ colors <- colorRampPalette(rev(brewer.pal(9,"Blues")))(255)
 # generated the heat map
 pheatmap(sample_dists_matrix, clustering_distance_rows = sample_dists, clustering_distance_cols = sample_dists, color = colors)
 
-# based on the heatmap, it seems like GSM461180_treated_paired sample is similar to GSM461181_treated_pairs sample. Meanwhile, the rest of the samples seem to be relatively different.
-
 
 
 # heatmap of top 10 log transformed normalized counts
 # sort by the log transformed normalized counts and select first 10 values
 top_hits <- deseq_results[order(deseq_results$padj),][1:10,]
 top_hits <- row.names(top_hits)
-top_hits
+# top_hits
 write.csv(top_hits, "data/top_hits.csv")
 
 # log transformation
 rld <- rlog(dds, blind = FALSE)
 
 # heatmap without clustering
-pheatmap(assay(rld)[top_hits,], cluster_rows = FALSE, show_rownames = TRUE, cluster_cols = FALSE)
+# pheatmap(assay(rld)[top_hits,], cluster_rows = FALSE, show_rownames = TRUE, cluster_cols = FALSE)
 
 # heatmap with clustering
-pheatmap(assay(rld)[top_hits,])
+# pheatmap(assay(rld)[top_hits,])
 
 # adding annotations
 annot_info <- as.data.frame(colData(dds)[,c("Sequencing","Treatment")])
@@ -198,7 +220,7 @@ pheatmap(z_score_subset)
 
 # MA plot
 
-plotMA(dds, ylim = c(-2,2))
+# plotMA(dds, ylim = c(-2,2))
 
 # removing noise
 resLFC <- lfcShrink(dds, coef = "Treatment_treated_vs_untreated", type = "apeglm")
@@ -225,3 +247,27 @@ ggplot(data = resLFC, aes(x = log2FoldChange, y = log10(pvalue), col = diffexpre
   scale_color_manual(values = c("blue","black","red")) +
   theme(text = element_text(size = 20))
 ```
+
+
+## GO-Analysis
+
+While done off-screen using Galaxy, a GO Analysis showed that 60 GO terms (0.50%) are over-represented and 7 (0.07%) under-represented and that. The Go terms are represented as such: over-represented GO terms, 50 BP, 5 CC and 5 MF and for under-represented, 5 BP, 2 CC and 0 MF.
+ 
+## Kegg Pathway Analysis
+
+When performing a Kegg pathways analysis, it was noted that around 2% of pathways were over-represented. The KEGG pathways over-represented are 01100 and 00010. From the Kegg database: 01100 corresponds to all metabolic pathways and 00010 to pathway for Glycolysis. It appears that no pathways are under-represented. You may find the pathway image in the data folder.
+
+## Future Goals:
+
+This project was very useful in understanding ways to filter, visualize, and understand differentially expressed genes. I feel the experience gained from using DESeq2 in the project will be invaluable, and performed a Kegg Pathway Analysis alongside the GO-Analysis was a good experience, despite them being a great source of strife. In the future, I wish to understand more about the individual genes I work with, as I felt a bit of a disconnect in matching the genes to what they actually do. For example, I seek to answer questions such as: How can these results be applied?
+
+I also hope to perform similar analyses using UNIX or Python instead of R to gain more experience in different methods of analysis.
+
+## Sources
+https://academic.oup.com/bioinformatics/article/32/19/3047/2196507?login=true
+https://www.youtube.com/playlist?list=PLe1-kjuYBZ05N8tWd2XVW67C4SJOJIdXD
+https://www.youtube.com/watch?v=JPwdqdo_tRg
+https://training.galaxyproject.org/training-material/topics/transcriptomics/tutorials/goenrichment/tutorial.html
+https://training.galaxyproject.org/training-material/topics/transcriptomics/tutorials/ref-based/tutorial.html#conclusion
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3032923/
+https://www.genome.jp/kegg/
