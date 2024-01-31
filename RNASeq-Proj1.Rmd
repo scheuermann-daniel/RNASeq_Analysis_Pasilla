@@ -5,10 +5,12 @@ date: "2024-01-31"
 output: html_document
 ---
 
-```{r setup, include=TRUE}
+```{r initial_setup, include=TRUE}
 
 knitr::opts_chunk$set(echo = TRUE)
 
+
+# initial setup
 library(DESeq2)
 library(pheatmap)
 library(dplyr)
@@ -18,12 +20,36 @@ library(ggrepel)
 
 ```
 
+```{r data_setup}
 
+count_data <- read.csv("data/count_matrix.csv", header = TRUE, row.names = 1)
 
-```{r cars}
-summary(cars)
+# here you can see the data set directly split into the treated and untreated samples.
+
+# these two separate samples can be compared to show the effects that 'Pasilla' gene depletion has on gene expression.
+
+colnames(count_data)
+
+head(count_data)
+
+# sample information
+
+sample_info <- read.csv("data/design.csv", header = TRUE, row.names = 1)
+
+colnames(sample_info)
+
+head(sample_info)
+
+# the factors here are single vs paired, treated vs untreated.
+
+# setting factor levels
+sample_info$Treatment <- factor(sample_info$Treatment)
+sample_info$Sequencing <- factor(sample_info$Sequencing)
+
 ```
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r DESeq2_setup}
+
+dds <- DESeqDataSetFromMatrix(countData = count_data, colData = sample_info, design = -Sequencing + Treatment)
+
 ```
