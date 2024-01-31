@@ -50,6 +50,30 @@ sample_info$Sequencing <- factor(sample_info$Sequencing)
 
 ```{r DESeq2_setup}
 
-dds <- DESeqDataSetFromMatrix(countData = count_data, colData = sample_info, design = -Sequencing + Treatment)
+# creating the deseq object
+dds <- DESeqDataSetFromMatrix(countData = count_data, colData = sample_info, design = ~Sequencing + Treatment)
+
+# treatment factor reference
+dds$Treatment <- factor(dds$Treatment, level = c("untreated","treated"))
 
 ```
+
+```{r data_manip}
+
+# filtering the genes
+
+# we are looking at genes whose count is greater than 10
+keep <- rowSums(counts(dds)>10) >= min(table(sample_info$Treatment)) 
+
+dds <- dds[keep,]
+
+# identifying differentially expressed genes
+dds <- DESeq(dds)
+deseq_results <- results(dds)
+deseq_results
+
+# transfer the deseq results into a dataframe
+deseq_results <- as.data.frame(deseq_results)
+
+```
+
