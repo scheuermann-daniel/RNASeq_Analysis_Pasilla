@@ -1,0 +1,256 @@
+---
+output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+---
+---
+title: "RNASeq-Pasilla"
+author: "Daniel Scheuermann"
+date: "2025"
+output:
+word_document: default
+html_document: default
+---
+
+# Introduction
+
+This analysis reproduces, in part, the workflow and findings of a 2010 study investigating the *Pasilla* gene using RNA-seq data ([reference](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3032923/)). In the original study, *Pasilla* expression was experimentally depleted prior to RNA isolation, and both single-end and paired-end sequencing libraries were prepared for treated and untreated samples. The resulting RNA-seq libraries were sequenced and analyzed to assess differential gene expression.
+
+In this script, we compare treated versus untreated samples to evaluate the transcriptional effects of *Pasilla* depletion, while accounting for sequencing strategy (single-end vs. paired-end) as an additional experimental factor.
+
+```{r libraries}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load required libraries
+library(DESeq2)
+library(pheatmap)
+library(dplyr)
+library(RColorBrewer)
+library(ggplot2)
+library(ggrepel)
+library(clusterProfiler)
+library(goseq)
+```
+
+## Data Setup
+
+The dataset is organized into treated and untreated samples, with metadata describing sequencing strategy and treatment status. These factors allow us to isolate the effects of *Pasilla* depletion while controlling for technical variation introduced by different sequencing protocols.
+
+```{r data_setup}
+# Read in raw count matrix
+
+count_data <- read.csv("data/count_matrix.csv", header = TRUE, row.names = 1)
+
+# Read in sample metadata
+
+sample_info <- read.csv("data/design.csv", header = TRUE, row.names = 1)
+
+# Inspect sample metadata
+
+head(sample_info)
+
+# Define experimental factors
+
+sample_info$Treatment <- factor(sample_info$Treatment)
+sample_info$Sequencing <- factor(sample_info$Sequencing)
+```
+
+## DESeq2 Setup
+
+Here, we construct the DESeq2 dataset object and specify the experimental design. Sequencing strategy is included as a covariate to account for systematic differences between single-end and paired-end libraries. The untreated samples are explicitly set as the reference level for treatment comparisons.
+
+```{r deseq2_setup}
+# Create DESeq2 dataset
+
+dds <- DESeqDataSetFromMatrix(
+countData = count_data,
+colData = sample_info,
+design = ~ Sequencing + Treatment
+)
+
+# Set untreated samples as the reference level
+
+dds$Treatment <- factor(dds$Treatment, level = c("untreated", "treated"))
+```
+
+## Data Filtering and Differential Expression Analysis
+
+To improve statistical robustness, genes with consistently low counts are removed prior to analysis. Specifically, we retain genes with counts greater than 10 in at least as many samples as the smallest treatment group. Differential expression analysis is then performed using DESeq2, and results are ranked by statistical significance.
+
+```{r filtering}
+# Filter out lowly expressed genes
+
+keep <- rowSums(counts(dds) > 10) >= min(table(sample_info$Treatment))
+dds <- dds[keep, ]
+
+# Run differential expression analysis
+
+dds <- DESeq(dds)
+deseq_results <- results(dds)
+
+# Convert results to data frame and sort by p-value
+
+deseq_results <- as.data.frame(deseq_results)
+deseq_results <- deseq_results[order(deseq_results$pvalue), ]
+
+# Inspect top differentially expressed genes
+
+head(deseq_results)
+```
+
+## Examination of Specific Genes
+
+We next examine individual genes of interest to confirm expected biological effects. In particular, the *Pasilla* gene is expected to be downregulated in treated samples. This is supported by a negative log2 fold change and a statistically significant p-value.
+
+```{r examination}
+# Inspect a specific gene of interest
+
+deseq_results["FBgn0039155", ]
+
+# Evaluate Pasilla gene expression changes
+
+deseq_results["FBgn0261552", ]
+```
+
+## Identification of Differentially Expressed Genes
+
+Applying significance and effect-size thresholds (adjusted p-value < 0.05 and |log2 fold change| > 1), we identify a refined set of differentially expressed genes suitable for downstream analysis and visualization.
+
+```{r identification}
+# Select statistically significant and biologically meaningful genes
+
+filtered <- deseq_results %>%
+filter(padj < 0.05) %>%
+filter(abs(log2FoldChange) > 1)
+
+# Number of differentially expressed genes
+
+dim(filtered)
+```
+
+## Storing Results
+
+Key results, including full DESeq2 outputs, filtered gene lists, and normalized counts, are written to disk to facilitate reproducibility and downstream analyses.
+
+```{r storing_results}
+# Save DESeq2 results
+
+write.csv(deseq_results, "data/deseq_result.all.csv")
+write.csv(filtered, "data/deseq_result.filtered.csv")
+
+# Export normalized counts
+
+normalized_counts <- counts(dds, normalized = TRUE)
+write.csv(normalized_counts, "data/normalized_counts.csv")
+```
+
+## Visualization: Dispersion and Principal Component Analysis
+
+Dispersion estimates are examined to assess model fit, followed by principal component analysis (PCA) to evaluate global patterns in the data. Clear separation between treated and untreated samples indicates a strong treatment effect, while additional structure reflects differences between sequencing strategies.
+
+```{r visualization1}
+# Dispersion plot
+
+plotDispEsts(dds)
+
+# Variance-stabilizing transformation
+
+vsd <- vst(dds, blind = FALSE)
+
+# PCA plot
+
+plotPCA(vsd, intgroup = c("Sequencing", "Treatment"))
+```
+
+## Visualization: Heatmaps and Differential Expression Summaries
+
+Sample-to-sample distance heatmaps highlight similarities and differences among libraries. Additional heatmaps focusing on top differentially expressed genes provide a more detailed view of expression patterns across conditions.
+
+```{r visualization2}
+# Compute sample distance matrix
+
+sample_dists <- dist(t(assay(vsd)))
+sample_dists_matrix <- as.matrix(sample_dists)
+
+# Define color palette
+
+colors <- colorRampPalette(rev(brewer.pal(9, "Blues")))(255)
+
+# Sample distance heatmap
+
+pheatmap(
+sample_dists_matrix,
+clustering_distance_rows = sample_dists,
+clustering_distance_cols = sample_dists,
+color = colors
+)
+
+# Identify top 10 genes by adjusted p-value
+
+top_hits <- row.names(deseq_results[order(deseq_results$padj), ][1:10, ])
+write.csv(top_hits, "data/top_hits.csv")
+
+# Regularized log transformation
+
+rld <- rlog(dds, blind = FALSE)
+
+# Annotated heatmap of top hits
+
+annot_info <- as.data.frame(colData(dds)[, c("Sequencing", "Treatment")])
+pheatmap(
+assay(rld)[top_hits, ],
+cluster_rows = FALSE,
+cluster_cols = FALSE,
+show_rownames = TRUE,
+annotation_col = annot_info
+)
+
+# Z-score heatmap
+
+cal_z_score <- function(x) (x - mean(x)) / sd(x)
+z_scores <- t(apply(normalized_counts, 1, cal_z_score))
+pheatmap(z_scores[top_hits, ])
+
+# MA plot with log-fold change shrinkage
+
+resLFC <- lfcShrink(dds, coef = "Treatment_treated_vs_untreated", type = "apeglm")
+plotMA(resLFC, ylim = c(-2, 2))
+
+# Volcano plot
+
+resLFC <- as.data.frame(resLFC)
+resLFC$diffexpressed <- "NO"
+resLFC$diffexpressed[resLFC$log2FoldChange > 0.1 & resLFC$padj < 0.05] <- "UP"
+resLFC$diffexpressed[resLFC$log2FoldChange < -0.1 & resLFC$padj < 0.05] <- "DOWN"
+
+# Generate volcano plot
+
+ggplot(resLFC, aes(x = log2FoldChange, y = log10(pvalue), color = diffexpressed)) +
+geom_point() +
+theme_minimal() +
+scale_color_manual(values = c("blue", "black", "red")) +
+theme(text = element_text(size = 20))
+```
+
+# Gene Ontology (GO) Analysis
+
+Gene Ontology enrichment was run externally using the Galaxy platform. Overall, 60 GO terms (about 0.5%) were significantly over-represented, while 7 terms (about 0.07%) were under-represented. Most of the over-represented terms fell under Biological Processes, with a smaller number related to Cellular Components and Molecular Functions. The under-represented terms were mostly Biological Processes, with a couple of Cellular Component terms and no Molecular Function terms.
+
+# KEGG Pathway Analysis
+
+The KEGG pathway analysis showed that roughly 2% of pathways were significantly over-represented. In particular, the general metabolic pathway (01100) and the Glycolysis/Gluconeogenesis pathway (00010) stood out, pointing to broad metabolic changes linked to Pasilla depletion. No pathways were significantly under-represented. Visual summaries of these pathways are included in the data directory.
+
+# Future Directions
+
+This project was a useful hands-on exercise in RNA-seq analysis, including data processing, filtering, visualization, and interpretation using DESeq2. While clear differential expression patterns emerged, future work could focus more on interpreting specific genes and pathways to better tie the statistical results to biological meaning.
+
+It would also be valuable to repeat similar analyses using UNIX-based workflows or Python tools, both to build familiarity with alternative approaches and to compare results across different analysis frameworks.
+
+## Sources
+
+* [https://academic.oup.com/bioinformatics/article/32/19/3047/2196507](https://academic.oup.com/bioinformatics/article/32/19/3047/2196507)
+* [https://training.galaxyproject.org/training-material/topics/transcriptomics/tutorials/goenrichment/tutorial.html](https://training.galaxyproject.org/training-material/topics/transcriptomics/tutorials/goenrichment/tutorial.html)
+* [https://training.galaxyproject.org/training-material/topics/transcriptomics/tutorials/ref-based/tutorial.html#conclusion](https://training.galaxyproject.org/training-material/topics/transcriptomics/tutorials/ref-based/tutorial.html#conclusion)
+* [https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3032923/](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3032923/)
+* [https://www.genome.jp/kegg/](https://www.genome.jp/kegg/)
