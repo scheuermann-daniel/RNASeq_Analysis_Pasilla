@@ -3,7 +3,7 @@
 ## Overview
 
 **Author:** Daniel Scheuermann
-**Date:** 2024-01-31
+**Date:** 2025
 
 This repository contains an R Markdown–based RNA-seq analysis that reproduces, in part, the workflow and findings of a 2010 study investigating the effects of *Pasilla* gene depletion on gene expression. In the original experiment, *Pasilla* was depleted prior to RNA extraction, and both single-end and paired-end sequencing libraries were prepared for treated and untreated samples. The resulting RNA-seq data were analyzed to identify transcriptional changes associated with *Pasilla* knockdown.
 
